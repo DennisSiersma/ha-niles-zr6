@@ -10,7 +10,11 @@ from .const import CONF_NUM_ZONES, DOMAIN
 from .coordinator import NilesZR6Coordinator
 from .protocol import NilesZR6Client
 
-PLATFORMS: list[Platform] = [Platform.MEDIA_PLAYER]
+PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.MEDIA_PLAYER,
+    Platform.SENSOR,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

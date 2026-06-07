@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, SCAN_INTERVAL_SECONDS
 from .protocol import NilesZR6Client, NilesZR6Error, ZoneStatus
@@ -28,9 +29,12 @@ class NilesZR6Coordinator(DataUpdateCoordinator[dict[int, ZoneStatus]]):
         )
         self.client = client
         self.zones = zones
+        self.last_response: datetime | None = None
 
     async def _async_update_data(self) -> dict[int, ZoneStatus]:
         try:
-            return await self.client.async_get_status(self.zones)
+            data = await self.client.async_get_status(self.zones)
         except NilesZR6Error as err:
             raise UpdateFailed(str(err)) from err
+        self.last_response = dt_util.utcnow()
+        return data
