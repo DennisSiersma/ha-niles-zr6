@@ -38,8 +38,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up media player entities, one per zone."""
     coordinator: NilesZR6Coordinator = hass.data[DOMAIN][entry.entry_id]
-    zone_names: dict[str, str] = entry.data.get(CONF_ZONE_NAMES, {})
-    sources: list[str] = entry.data.get(
+    conf = {**entry.data, **entry.options}
+    zone_names: dict[str, str] = conf.get(CONF_ZONE_NAMES, {})
+    sources: list[str] = conf.get(
         CONF_SOURCES, [f"Source {i}" for i in range(1, 7)]
     )
 
@@ -51,7 +52,7 @@ async def async_setup_entry(
             zone_names.get(str(zone), f"Zone {zone}"),
             sources,
         )
-        for zone in range(1, entry.data[CONF_NUM_ZONES] + 1)
+        for zone in range(1, conf[CONF_NUM_ZONES] + 1)
     ]
     async_add_entities(entities)
 

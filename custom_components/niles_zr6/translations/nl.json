@@ -21,5 +21,20 @@
     "abort": {
       "already_configured": "Dit apparaat is al geconfigureerd."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Niles ZR-6 opties",
+        "description": "Wijzig het aantal actieve zones.",
+        "data": {
+          "num_zones": "Aantal zones"
+        }
+      },
+      "names": {
+        "title": "Zone- en bronnamen",
+        "description": "Werk zone- en bronnamen bij. Entiteiten van verwijderde zones worden automatisch opgeruimd."
+      }
+    }
   }
 }
