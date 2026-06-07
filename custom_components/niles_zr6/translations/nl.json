@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbinden met de Niles ZR-6",
+        "description": "Voer het adres in van de RS232-over-IP-bridge die op de ZR-6 is aangesloten.",
+        "data": {
+          "host": "Host",
+          "port": "Poort",
+          "num_zones": "Aantal zones"
+        }
+      },
+      "names": {
+        "title": "Zone- en bronnamen",
+        "description": "Geef je zones en bronnen herkenbare namen."
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken met de ZR-6. Controleer host/poort en zorg dat geen andere client de verbinding vasthoudt."
+    },
+    "abort": {
+      "already_configured": "Dit apparaat is al geconfigureerd."
+    }
+  }
+}

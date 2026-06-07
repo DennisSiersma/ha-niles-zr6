@@ -1,0 +1,12 @@
+{
+  "domain": "niles_zr6",
+  "name": "Niles ZR-6 MultiZone Receiver",
+  "codeowners": ["@DennisSiersma"],
+  "config_flow": true,
+  "documentation": "https://github.com/DennisSiersma/ha-niles-zr6",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/DennisSiersma/ha-niles-zr6/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

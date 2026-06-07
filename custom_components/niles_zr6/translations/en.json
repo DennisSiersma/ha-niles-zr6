@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to the Niles ZR-6",
+        "description": "Enter the address of the RS232-over-IP bridge connected to the ZR-6.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "num_zones": "Number of zones"
+        }
+      },
+      "names": {
+        "title": "Zone and source names",
+        "description": "Give your zones and sources friendly names."
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the ZR-6. Check the host/port and make sure no other client is holding the connection open."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  }
+}
