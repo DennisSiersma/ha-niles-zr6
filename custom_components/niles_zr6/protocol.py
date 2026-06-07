@@ -134,27 +134,77 @@ class NilesZR6Client:
                 return line
         return ""
 
+    @staticmethod
+    async def _flush_input(reader: asyncio.StreamReader) -> None:
+        """Discard any stale buffered data (e.g. replies to another client's
+        commands relayed by the RS232 bridge, or leftovers from a previous
+        connection)."""
+        for _ in range(10):
+            try:
+                data = await asyncio.wait_for(reader.read(1024), 0.15)
+            except (asyncio.TimeoutError, OSError):
+                return
+            if not data:
+                return
+
+    async def _poll_zone(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        zone: int,
+    ) -> ZoneStatus | None:
+        """Select a zone, query its status, and validate the reply.
+
+        Returns None if no valid reply for *this* zone was received (e.g.
+        because another controller changed the amp's active control zone
+        between our select and query).
+        """
+        await self._send(writer, f"znc,4,{zone}")
+        rznc = await self._read_until_prefix(reader, ("rznc,4,",))
+        if rznc:
+            parts = rznc.split(",")
+            if len(parts) >= 3 and parts[2].strip() != str(zone):
+                _LOGGER.debug(
+                    "Zone %s: select confirmed a different zone (%s)", zone, rznc
+                )
+        await self._send(writer, "znc,5")
+        line = await self._read_until_prefix(reader, ("usc,2",))
+        status = parse_usc(line)
+        if status is None:
+            _LOGGER.debug("Zone %s: no status reply", zone)
+            return None
+        if status.zone != zone:
+            # Another controller (e.g. Node-RED) changed the active zone
+            # between our select and query. Never attribute this reply.
+            _LOGGER.debug(
+                "Zone %s: discarding status reply for zone %s", zone, status.zone
+            )
+            return None
+        return status
+
     async def async_get_status(self, zones: list[int]) -> dict[int, ZoneStatus]:
         """Poll status for the given zones over one short-lived connection.
 
         The ZR-6 only reports status for the active control zone, so for each
         zone we first make it active (znc,4,<zone>) and then request status
-        (znc,5).
+        (znc,5). Each reply is validated against the requested zone and
+        retried once on mismatch, so interleaved commands from another
+        controller can never corrupt zone states.
         """
         async with self._lock:
             reader, writer = await self._open()
             try:
+                await self._flush_input(reader)
                 statuses: dict[int, ZoneStatus] = {}
                 for zone in zones:
-                    await self._send(writer, f"znc,4,{zone}")
-                    await self._read_until_prefix(reader, ("rznc",))
-                    await self._send(writer, "znc,5")
-                    line = await self._read_until_prefix(reader, ("usc,2",))
-                    status = parse_usc(line)
+                    status = await self._poll_zone(reader, writer, zone)
+                    if status is None:
+                        # Retry once: re-select and re-query this zone.
+                        status = await self._poll_zone(reader, writer, zone)
                     if status is not None:
-                        statuses[status.zone] = status
+                        statuses[zone] = status
                     else:
-                        _LOGGER.debug("No status received for zone %s", zone)
+                        _LOGGER.debug("No valid status for zone %s this cycle", zone)
                 if not statuses:
                     raise NilesZR6Error("No zone status received from ZR-6")
                 return statuses

@@ -37,4 +37,9 @@ class NilesZR6Coordinator(DataUpdateCoordinator[dict[int, ZoneStatus]]):
         except NilesZR6Error as err:
             raise UpdateFailed(str(err)) from err
         self.last_response = dt_util.utcnow()
-        return data
+        # If a zone's reply was discarded this cycle (e.g. active-zone race
+        # with another controller), keep its last known status instead of
+        # flapping to unavailable.
+        merged: dict[int, ZoneStatus] = dict(self.data) if self.data else {}
+        merged.update(data)
+        return {z: s for z, s in merged.items() if z in self.zones}
