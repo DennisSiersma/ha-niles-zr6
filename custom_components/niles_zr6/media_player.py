@@ -67,6 +67,7 @@ class NilesZoneMediaPlayer(CoordinatorEntity[NilesZR6Coordinator], MediaPlayerEn
         | MediaPlayerEntityFeature.SELECT_SOURCE
     )
     _attr_device_class = MediaPlayerDeviceClass.RECEIVER
+    _attr_has_entity_name = True
 
     def __init__(
         self,
