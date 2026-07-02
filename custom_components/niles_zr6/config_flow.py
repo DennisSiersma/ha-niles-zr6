@@ -18,12 +18,16 @@ from homeassistant.core import callback
 
 from .const import (
     CONF_NUM_ZONES,
+    CONF_SCAN_INTERVAL,
     CONF_SOURCES,
     CONF_ZONE_NAMES,
     DEFAULT_NUM_ZONES,
     DEFAULT_PORT,
+    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    MAX_SCAN_INTERVAL,
     MAX_ZONES,
+    MIN_SCAN_INTERVAL,
     NUM_SOURCES,
 )
 from .protocol import NilesZR6Client, NilesZR6Error
@@ -39,6 +43,16 @@ STEP_USER_SCHEMA = vol.Schema(
         ),
     }
 )
+
+
+async def _async_validate_connection(host: str, port: int) -> bool:
+    """Return True if the ZR-6 answers a status request."""
+    client = NilesZR6Client(host, port)
+    try:
+        await client.async_get_status([1])
+    except NilesZR6Error:
+        return False
+    return True
 
 
 class NilesZR6ConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -67,10 +81,9 @@ class NilesZR6ConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             self._abort_if_unique_id_configured()
 
-            client = NilesZR6Client(user_input[CONF_HOST], user_input[CONF_PORT])
-            try:
-                await client.async_get_status([1])
-            except NilesZR6Error:
+            if not await _async_validate_connection(
+                user_input[CONF_HOST], user_input[CONF_PORT]
+            ):
                 errors["base"] = "cannot_connect"
             else:
                 self._base_data = dict(user_input)
@@ -114,12 +127,44 @@ class NilesZR6ConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="names", data_schema=vol.Schema(schema_dict)
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Reconfigure the bridge host/port of an existing entry."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            if not await _async_validate_connection(
+                user_input[CONF_HOST], user_input[CONF_PORT]
+            ):
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={
+                        CONF_HOST: user_input[CONF_HOST],
+                        CONF_PORT: user_input[CONF_PORT],
+                    },
+                )
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_HOST, default=entry.data[CONF_HOST]): str,
+                vol.Required(CONF_PORT, default=entry.data[CONF_PORT]): int,
+            }
+        )
+        return self.async_show_form(
+            step_id="reconfigure", data_schema=schema, errors=errors
+        )
+
 
 class NilesZR6OptionsFlow(OptionsFlow):
-    """Reconfigure zone count and zone/source names after setup."""
+    """Reconfigure zone count, scan interval and zone/source names."""
 
     def __init__(self) -> None:
         self._num_zones: int | None = None
+        self._scan_interval: int | None = None
 
     @property
     def _conf(self) -> dict[str, Any]:
@@ -128,9 +173,10 @@ class NilesZR6OptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """First step: number of zones."""
+        """First step: number of zones and scan interval."""
         if user_input is not None:
             self._num_zones = user_input[CONF_NUM_ZONES]
+            self._scan_interval = user_input[CONF_SCAN_INTERVAL]
             return await self.async_step_names()
 
         schema = vol.Schema(
@@ -138,6 +184,13 @@ class NilesZR6OptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_NUM_ZONES, default=self._conf[CONF_NUM_ZONES]
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=MAX_ZONES)),
+                vol.Required(
+                    CONF_SCAN_INTERVAL,
+                    default=self._conf.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=MIN_SCAN_INTERVAL, max=MAX_SCAN_INTERVAL),
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
@@ -161,6 +214,8 @@ class NilesZR6OptionsFlow(OptionsFlow):
                 title="",
                 data={
                     CONF_NUM_ZONES: num_zones,
+                    CONF_SCAN_INTERVAL: self._scan_interval
+                    or self._conf.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                     CONF_ZONE_NAMES: zone_names,
                     CONF_SOURCES: sources,
                 },
