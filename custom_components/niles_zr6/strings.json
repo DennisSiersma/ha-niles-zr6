@@ -13,27 +13,73 @@
       "names": {
         "title": "Zone and source names",
         "description": "Give your zones and sources friendly names."
+      },
+      "reconfigure": {
+        "title": "Reconfigure the bridge connection",
+        "description": "Update the host/port of the RS232-over-IP bridge.",
+        "data": {
+          "host": "Host",
+          "port": "Port"
+        }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to the ZR-6. Check the host/port and make sure no other client is holding the connection open."
     },
     "abort": {
-      "already_configured": "This device is already configured."
+      "already_configured": "This device is already configured.",
+      "reconfigure_successful": "Bridge connection updated."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Niles ZR-6 options",
-        "description": "Change the number of active zones.",
+        "description": "Change the number of active zones and how often zone status is polled.",
         "data": {
-          "num_zones": "Number of zones"
+          "num_zones": "Number of zones",
+          "scan_interval": "Poll interval (seconds)"
         }
       },
       "names": {
         "title": "Zone and source names",
         "description": "Update zone and source names. Entities for removed zones are cleaned up automatically."
+      }
+    }
+  },
+  "services": {
+    "all_zones_source": {
+      "name": "All zones: select source (party mode)",
+      "description": "Selects a source in all party-mode-enabled zones at once (znt global command). Also powers those zones on.",
+      "fields": {
+        "source": {
+          "name": "Source",
+          "description": "Source number 1-6."
+        }
+      }
+    },
+    "all_zones_off": {
+      "name": "All zones off",
+      "description": "Turns all zones off at once (znt global command)."
+    },
+    "tune": {
+      "name": "Tune radio",
+      "description": "Direct-tunes the built-in tuner. FM: 'XXX.X' (e.g. 102.7), AM: 'XXXX' (e.g. 0560). The tuner must be the selected source in the active zone.",
+      "fields": {
+        "frequency": {
+          "name": "Frequency",
+          "description": "Station frequency."
+        }
+      }
+    },
+    "send_command": {
+      "name": "Send raw command",
+      "description": "Sends a raw protocol command to the ZR-6 and returns the response lines. For diagnostics/advanced use.",
+      "fields": {
+        "command": {
+          "name": "Command",
+          "description": "Raw ASCII command without carriage return, e.g. 'znc,5'."
+        }
       }
     }
   }
