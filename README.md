@@ -6,12 +6,21 @@ Each zone becomes a `media_player` entity with:
 
 - Power on/off
 - Source selection (6 sources)
-- Volume up/down and volume level display (0–100%, read from the amp)
-- Mute
-- Bass/treble shown as state attributes
-- State updates by polling the receiver
+- **Absolute volume (slider)** — emulated with a closed loop of volume up/down steps and status feedback, since the ZR-6 protocol has no absolute volume command
+- Volume up/down and mute
+- Bass and treble as **number entities** per zone (-7..+7), plus as state attributes
+- State updates by polling the receiver (interval configurable), with immediate per-zone verification after every command
 
-> **Note:** the ZR-6 protocol has **no absolute volume set** command — only volume up/down steps. The current volume *level* is read back from the receiver and shown on the entity, but dragging a volume slider is not supported.
+Diagnostic entities: connection `binary_sensor` and last-response `sensor`. A diagnostics download is available on the config entry.
+
+## Services
+
+| Service | Description |
+|---|---|
+| `niles_zr6.all_zones_source` | Party mode: select source 1-6 in all party-enabled zones at once (`znt,<code>,h`) |
+| `niles_zr6.all_zones_off` | Turn all zones off at once (`znt,10,h`) |
+| `niles_zr6.tune` | Direct-tune the tuner (`src,11,<freq>`; FM `102.7`, AM `0560`) |
+| `niles_zr6.send_command` | Send a raw protocol command and get the response lines back (diagnostics) |
 
 ## Hardware setup
 
@@ -45,7 +54,9 @@ Manual alternative: copy `custom_components/niles_zr6` into your `config/custom_
 2. Enter the bridge **host** (e.g. `192.168.1.250`), **port** (e.g. `23`) and the **number of zones** in use (1–18; a single ZR-6 chassis has 6).
 3. On the next page, name your zones (e.g. Toilet, Eetkamer, Speelkamer, Woonkamer) and the 6 sources.
 
-Zone status is polled every 30 seconds, and refreshed immediately after every command.
+Afterwards you can change the zone count, **poll interval**, and zone/source names via the entry's **Configure** button, and the bridge host/port via **⋯ → Reconfigure**.
+
+Zone status is polled every 30 seconds by default (configurable 5–600 s). After every command the affected zone's status is verified over the same connection and updated immediately.
 
 ## Protocol reference
 
@@ -56,7 +67,7 @@ From the official Niles *"ZR-6 MultiZone Receiver RS-232C Control Protocols"* do
 | `znc,4,<zone>` | Make `<zone>` the active control zone | `rznc,4,<zone>` |
 | `znc,5` | Request status of the active zone | `usc,2,<zone>,<source>,<on/off>,<volume 0-100>,<mute>,<bass -7..7>,<treble -7..7>` |
 | `zsc,<zone>,<code>` | Zone-specific command (see codes below) | `rzsc,<zone>,<code>,OK` |
-| `znt,<code>,h` | Global (party-mode) command, all zones | `rznt,<code>,OK` |
+| `znt,<code>,h` | Global (party-mode) command, all party-enabled zones; only source select and off | `rznt,<code>,OK` |
 | `src,11,<freq>` | Direct tune the tuner (e.g. `102.7` or `0560`) | `rsrc,11,OK` |
 | `usc,1` | Unsolicited: receiver ready after boot | — |
 | `r<type>,<code>,FAIL,<fcode>` | Command failure response | — |
@@ -70,8 +81,20 @@ Zone-specific command codes used by this integration:
 | `11` | Mute (toggle) |
 | `12` | Volume up |
 | `13` | Volume down |
+| `128`/`129` | Bass up / down (hex `80`/`81` in the R-6L table) |
+| `130`/`131` | Treble up / down (hex `82`/`83` in the R-6L table) |
 
-The full document also defines transport codes (play/pause/etc.), digit keys, and bass/treble hex codes.
+The full document also defines transport codes (play/pause/etc.), digit keys, and tuner preset/scan codes.
+
+## Development
+
+Unit tests (no Home Assistant install required — includes a fake ZR-6 TCP server):
+
+```bash
+python -m pytest tests/ -v
+```
+
+CI runs [hassfest](https://developers.home-assistant.io/blog/2020/04/16/hassfest/), [HACS validation](https://github.com/hacs/action) and the unit tests on every push and PR.
 
 ## Credits
 
