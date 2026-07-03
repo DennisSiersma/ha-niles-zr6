@@ -94,10 +94,56 @@ class NilesZR6Error(Exception):
 class NilesZR6Client:
     """Asyncio client using short-lived TCP connections."""
 
-    def __init__(self, host: str, port: int = 23) -> None:
+    def __init__(self, host: str, port: int = 23, persistent: bool = False) -> None:
         self._host = host
         self._port = port
         self._lock = asyncio.Lock()
+        self._persistent = persistent
+        self._preader: asyncio.StreamReader | None = None
+        self._pwriter: asyncio.StreamWriter | None = None
+        self._dirty = False
+
+    async def _acquire(self) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        """Return a connection: fresh per call (shared mode) or reused
+        (persistent/exclusive mode, reconnecting when needed)."""
+        if self._persistent:
+            if self._dirty and self._pwriter is not None:
+                await self._close(self._pwriter)
+                self._pwriter = None
+                self._preader = None
+            if self._pwriter is None or self._pwriter.is_closing():
+                self._preader, self._pwriter = await self._open()
+                await self._flush_input(self._preader)
+                self._dirty = False
+            return self._preader, self._pwriter
+        reader, writer = await self._open()
+        await self._flush_input(reader)
+        return reader, writer
+
+    async def _release(self, writer: asyncio.StreamWriter) -> None:
+        """Close the connection (shared mode) or keep it open unless it is
+        suspect (persistent mode)."""
+        if not self._persistent:
+            await self._close(writer)
+            return
+        if self._dirty or writer.is_closing():
+            await self._close(writer)
+            if writer is self._pwriter:
+                self._pwriter = None
+                self._preader = None
+
+    def _mark_dirty(self) -> None:
+        """Flag the persistent connection as suspect; it will be re-opened
+        on the next operation."""
+        self._dirty = True
+
+    async def async_disconnect(self) -> None:
+        """Close the persistent connection (used on unload)."""
+        async with self._lock:
+            if self._pwriter is not None:
+                await self._close(self._pwriter)
+                self._pwriter = None
+                self._preader = None
 
     async def _open(self) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         try:
@@ -117,11 +163,14 @@ class NilesZR6Client:
         except OSError:
             pass
 
-    @staticmethod
-    async def _send(writer: asyncio.StreamWriter, command: str) -> None:
+    async def _send(self, writer: asyncio.StreamWriter, command: str) -> None:
         _LOGGER.debug("TX: %s", command)
-        writer.write(command.encode("ascii") + TERMINATOR)
-        await writer.drain()
+        try:
+            writer.write(command.encode("ascii") + TERMINATOR)
+            await writer.drain()
+        except OSError as err:
+            self._mark_dirty()
+            raise NilesZR6Error(f"Connection lost while sending: {err}") from err
 
     @staticmethod
     async def _read_line(reader: asyncio.StreamReader) -> str:
@@ -227,9 +276,8 @@ class NilesZR6Client:
         controller can never corrupt zone states.
         """
         async with self._lock:
-            reader, writer = await self._open()
+            reader, writer = await self._acquire()
             try:
-                await self._flush_input(reader)
                 statuses: dict[int, ZoneStatus] = {}
                 for zone in zones:
                     status = await self._poll_zone_retry(reader, writer, zone)
@@ -238,10 +286,11 @@ class NilesZR6Client:
                     else:
                         _LOGGER.debug("No valid status for zone %s this cycle", zone)
                 if not statuses:
+                    self._mark_dirty()
                     raise NilesZR6Error("No zone status received from ZR-6")
                 return statuses
             finally:
-                await self._close(writer)
+                await self._release(writer)
 
     async def async_zone_command(
         self, zone: int, code: str, verify_zones: list[int] | None = None
@@ -260,9 +309,8 @@ class NilesZR6Client:
         """
         zones = [zone] + [z for z in (verify_zones or []) if z != zone]
         async with self._lock:
-            reader, writer = await self._open()
+            reader, writer = await self._acquire()
             try:
-                await self._flush_input(reader)
                 await self._zsc(reader, writer, zone, code)
                 statuses: dict[int, ZoneStatus] = {}
                 for z in zones:
@@ -271,7 +319,7 @@ class NilesZR6Client:
                         statuses[z] = status
                 return statuses
             finally:
-                await self._close(writer)
+                await self._release(writer)
 
     async def async_set_volume(self, zone: int, target: int) -> ZoneStatus | None:
         """Emulate absolute volume using up/down steps with status feedback.
@@ -283,9 +331,8 @@ class NilesZR6Client:
         """
         target = max(0, min(100, int(target)))
         async with self._lock:
-            reader, writer = await self._open()
+            reader, writer = await self._acquire()
             try:
-                await self._flush_input(reader)
                 status = await self._poll_zone_retry(reader, writer, zone)
                 if status is None:
                     raise NilesZR6Error(f"Zone {zone}: no status; cannot set volume")
@@ -317,7 +364,7 @@ class NilesZR6Client:
                         break
                 return status
             finally:
-                await self._close(writer)
+                await self._release(writer)
 
     async def async_set_tone(self, zone: int, control: str, target: int) -> ZoneStatus | None:
         """Set bass or treble (-7..+7) using step commands with feedback.
@@ -335,9 +382,8 @@ class NilesZR6Client:
             else (CMD_TREBLE_UP, CMD_TREBLE_DOWN)
         )
         async with self._lock:
-            reader, writer = await self._open()
+            reader, writer = await self._acquire()
             try:
-                await self._flush_input(reader)
                 status = await self._poll_zone_retry(reader, writer, zone)
                 if status is None:
                     raise NilesZR6Error(f"Zone {zone}: no status; cannot set {control}")
@@ -363,7 +409,7 @@ class NilesZR6Client:
                     status = new_status
                 return status
             finally:
-                await self._close(writer)
+                await self._release(writer)
 
     async def async_global_command(self, code: str) -> None:
         """Send a global (party mode) command: znt,<code>,h.
@@ -373,15 +419,14 @@ class NilesZR6Client:
         (10, turns all zones off).
         """
         async with self._lock:
-            reader, writer = await self._open()
+            reader, writer = await self._acquire()
             try:
-                await self._flush_input(reader)
                 await self._send(writer, f"znt,{code},h")
                 response = await self._read_until_prefix(reader, ("rznt",))
                 if "FAIL" in response:
                     raise NilesZR6Error(f"Command znt,{code},h failed: {response}")
             finally:
-                await self._close(writer)
+                await self._release(writer)
 
     async def async_tune(self, frequency: str) -> None:
         """Direct-tune the tuner: src,11,<frequency>.
@@ -390,15 +435,14 @@ class NilesZR6Client:
         be the selected source in the active zone.
         """
         async with self._lock:
-            reader, writer = await self._open()
+            reader, writer = await self._acquire()
             try:
-                await self._flush_input(reader)
                 await self._send(writer, f"src,11,{frequency}")
                 response = await self._read_until_prefix(reader, ("rsrc",))
                 if "FAIL" in response:
                     raise NilesZR6Error(f"Command src,11,{frequency} failed: {response}")
             finally:
-                await self._close(writer)
+                await self._release(writer)
 
     async def async_send_raw(self, command: str) -> list[str]:
         """Send a raw protocol command and return all response lines.
@@ -407,9 +451,8 @@ class NilesZR6Client:
         service.
         """
         async with self._lock:
-            reader, writer = await self._open()
+            reader, writer = await self._acquire()
             try:
-                await self._flush_input(reader)
                 await self._send(writer, command)
                 lines: list[str] = []
                 for _ in range(10):
@@ -422,4 +465,4 @@ class NilesZR6Client:
                         lines.append(line)
                 return lines
             finally:
-                await self._close(writer)
+                await self._release(writer)

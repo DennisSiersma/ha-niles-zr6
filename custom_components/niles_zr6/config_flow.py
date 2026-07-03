@@ -17,10 +17,12 @@ from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import callback
 
 from .const import (
+    CONF_CONNECTION_MODE,
     CONF_NUM_ZONES,
     CONF_SCAN_INTERVAL,
     CONF_SOURCES,
     CONF_ZONE_NAMES,
+    DEFAULT_CONNECTION_MODE,
     DEFAULT_NUM_ZONES,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
@@ -28,6 +30,8 @@ from .const import (
     MAX_SCAN_INTERVAL,
     MAX_ZONES,
     MIN_SCAN_INTERVAL,
+    MODE_EXCLUSIVE,
+    MODE_SHARED,
     NUM_SOURCES,
 )
 from .protocol import NilesZR6Client, NilesZR6Error
@@ -165,6 +169,7 @@ class NilesZR6OptionsFlow(OptionsFlow):
     def __init__(self) -> None:
         self._num_zones: int | None = None
         self._scan_interval: int | None = None
+        self._connection_mode: str | None = None
 
     @property
     def _conf(self) -> dict[str, Any]:
@@ -177,6 +182,7 @@ class NilesZR6OptionsFlow(OptionsFlow):
         if user_input is not None:
             self._num_zones = user_input[CONF_NUM_ZONES]
             self._scan_interval = user_input[CONF_SCAN_INTERVAL]
+            self._connection_mode = user_input[CONF_CONNECTION_MODE]
             return await self.async_step_names()
 
         schema = vol.Schema(
@@ -191,6 +197,12 @@ class NilesZR6OptionsFlow(OptionsFlow):
                     vol.Coerce(int),
                     vol.Range(min=MIN_SCAN_INTERVAL, max=MAX_SCAN_INTERVAL),
                 ),
+                vol.Required(
+                    CONF_CONNECTION_MODE,
+                    default=self._conf.get(
+                        CONF_CONNECTION_MODE, DEFAULT_CONNECTION_MODE
+                    ),
+                ): vol.In([MODE_SHARED, MODE_EXCLUSIVE]),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
@@ -216,6 +228,10 @@ class NilesZR6OptionsFlow(OptionsFlow):
                     CONF_NUM_ZONES: num_zones,
                     CONF_SCAN_INTERVAL: self._scan_interval
                     or self._conf.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                    CONF_CONNECTION_MODE: self._connection_mode
+                    or self._conf.get(
+                        CONF_CONNECTION_MODE, DEFAULT_CONNECTION_MODE
+                    ),
                     CONF_ZONE_NAMES: zone_names,
                     CONF_SOURCES: sources,
                 },

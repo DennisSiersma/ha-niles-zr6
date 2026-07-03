@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.0 (2026-07-03)
+
+### Added
+- **Exclusive connection mode**: optional persistent TCP connection to the
+  RS232 bridge (options flow: `connection_mode` = `shared`/`exclusive`).
+  In exclusive mode the integration keeps one connection open with automatic
+  reconnect when the bridge drops it — much lower per-command latency. Use
+  shared (default) when other tools (e.g. Node-RED) share the bridge.
+- README: documented the ZR-6 **Zone Linking** behavior discovered on real
+  hardware, and the new connection mode.
+
+### Notes
+- Tests: 31 total, including persistent-mode reuse/reconnect scenarios
+  against the fake ZR-6 TCP server.
+
 ## 1.1.1 (2026-07-03)
 
 ### Fixed

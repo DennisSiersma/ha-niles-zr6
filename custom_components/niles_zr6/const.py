@@ -6,6 +6,11 @@ CONF_NUM_ZONES = "num_zones"
 CONF_ZONE_NAMES = "zone_names"
 CONF_SOURCES = "sources"
 CONF_SCAN_INTERVAL = "scan_interval"
+CONF_CONNECTION_MODE = "connection_mode"
+
+MODE_SHARED = "shared"
+MODE_EXCLUSIVE = "exclusive"
+DEFAULT_CONNECTION_MODE = MODE_SHARED
 
 DEFAULT_PORT = 23
 DEFAULT_NUM_ZONES = 6

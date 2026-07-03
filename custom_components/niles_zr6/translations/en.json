@@ -35,10 +35,11 @@
     "step": {
       "init": {
         "title": "Niles ZR-6 options",
-        "description": "Change the number of active zones and how often zone status is polled.",
+        "description": "Change the number of active zones, polling and how the RS232 bridge connection is used.",
         "data": {
           "num_zones": "Number of zones",
-          "scan_interval": "Poll interval (seconds)"
+          "scan_interval": "Poll interval (seconds)",
+          "connection_mode": "Connection mode (shared = reconnect per command, exclusive = keep connection open)"
         }
       },
       "names": {

@@ -84,13 +84,19 @@ class FakeZR6:
         self._server = None
         self.port = None
 
-    async def start(self):
-        self._server = await asyncio.start_server(self._handle, "127.0.0.1", 0)
+    async def start(self, port=0):
+        self.connections = getattr(self, "connections", 0)
+        self._writers = getattr(self, "_writers", set())
+        self._server = await asyncio.start_server(self._handle, "127.0.0.1", port)
         self.port = self._server.sockets[0].getsockname()[1]
 
     async def stop(self):
         self._server.close()
         await self._server.wait_closed()
+        # Drop established connections too (simulates a bridge going away).
+        for w in list(self._writers):
+            w.close()
+        self._writers.clear()
 
     def _status_line(self):
         z = self.zones[self.active_zone]
@@ -131,6 +137,8 @@ class FakeZR6:
             z.treble = max(-7, z.treble - 1)
 
     async def _handle(self, reader, writer):
+        self.connections = getattr(self, "connections", 0) + 1
+        self._writers.add(writer)
         try:
             while True:
                 try:
@@ -332,6 +340,51 @@ class TestGlobalAndRaw(FakeServerTestCase):
     async def test_failed_command_raises(self):
         with self.assertRaises(NilesZR6Error):
             await self.client.async_global_command("99")
+
+
+class TestPersistentMode(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.server = FakeZR6()
+        await self.server.start()
+        self.client = NilesZR6Client("127.0.0.1", self.server.port, persistent=True)
+
+    async def asyncTearDown(self):
+        await self.client.async_disconnect()
+        await self.server.stop()
+
+    async def test_connection_is_reused(self):
+        await self.client.async_get_status([1, 2])
+        await self.client.async_zone_command(1, CMD_SOURCE[3])
+        await self.client.async_get_status([1, 2])
+        self.assertEqual(self.server.connections, 1)
+
+    async def test_reconnects_after_server_restart(self):
+        await self.client.async_get_status([1])
+        port = self.server.port
+        await self.server.stop()
+        with self.assertRaises(NilesZR6Error):
+            await self.client.async_get_status([1])
+        await self.server.start(port=port)
+        statuses = await self.client.async_get_status([1, 2])
+        self.assertEqual(set(statuses), {1, 2})
+
+    async def test_disconnect_then_reuse(self):
+        await self.client.async_get_status([1])
+        await self.client.async_disconnect()
+        statuses = await self.client.async_get_status([1])
+        self.assertEqual(set(statuses), {1})
+        self.assertEqual(self.server.connections, 2)
+
+
+class TestSharedModeOpensPerCall(unittest.IsolatedAsyncioTestCase):
+    async def test_new_connection_per_operation(self):
+        server = FakeZR6()
+        await server.start()
+        client = NilesZR6Client("127.0.0.1", server.port)
+        await client.async_get_status([1])
+        await client.async_get_status([1])
+        self.assertEqual(server.connections, 2)
+        await server.stop()
 
 
 class TestConnectionErrors(unittest.IsolatedAsyncioTestCase):

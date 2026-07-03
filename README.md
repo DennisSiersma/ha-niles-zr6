@@ -40,6 +40,10 @@ Most RS232-over-IP bridges accept **only one TCP client at a time**. This integr
 
 Caveat: if the *other* client holds a persistent connection, this integration cannot get through. Configure your other tools to also use short-lived connections.
 
+### Exclusive mode (persistent connection)
+
+If the integration is the **only** client on the bridge, switch the **connection mode** to `exclusive` in the options flow. The integration then keeps a single TCP connection open (with automatic reconnect when the bridge drops it), eliminating the connect/disconnect overhead of every poll and command — noticeably faster commands and volume slider moves. Use `shared` (the default) whenever another tool talks to the same bridge.
+
 ## Installation (HACS)
 
 1. In HACS, open **⋮ → Custom repositories**.
@@ -54,9 +58,15 @@ Manual alternative: copy `custom_components/niles_zr6` into your `config/custom_
 2. Enter the bridge **host** (e.g. `192.168.1.250`), **port** (e.g. `23`) and the **number of zones** in use (1–18; a single ZR-6 chassis has 6).
 3. On the next page, name your zones (e.g. Toilet, Eetkamer, Speelkamer, Woonkamer) and the 6 sources.
 
-Afterwards you can change the zone count, **poll interval**, and zone/source names via the entry's **Configure** button, and the bridge host/port via **⋯ → Reconfigure**.
+Afterwards you can change the zone count, **poll interval**, **connection mode** (shared/exclusive), and zone/source names via the entry's **Configure** button, and the bridge host/port via **⋯ → Reconfigure**.
 
 Zone status is polled every 30 seconds by default (configurable 5–600 s). After every command the affected zone's status is verified over the same connection and updated immediately.
+
+## Zone Linking (amp behavior worth knowing)
+
+The ZR-6 has a **Zone Linking** feature (front-panel configuration, stored in the chassis): linked zones *always play the same source at the same time* — a power or source command on one linked zone switches the whole group, while **volume, bass, treble and mute remain independent** per zone. One linking group per chassis.
+
+This integration handles that transparently: after every power/source command it re-reads **all** configured zones in the same TCP session, so Home Assistant immediately shows the state of linked partner zones. If zones in your setup seem to switch "together", check the Linking setting on the amp (configuration mode: power on while holding Band+Set, then Set until `123456 LINKING`).
 
 ## Protocol reference
 

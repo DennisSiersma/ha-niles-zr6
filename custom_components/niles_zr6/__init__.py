@@ -19,10 +19,13 @@ from .const import (
     ATTR_COMMAND,
     ATTR_FREQUENCY,
     ATTR_SOURCE,
+    CONF_CONNECTION_MODE,
     CONF_NUM_ZONES,
     CONF_SCAN_INTERVAL,
+    DEFAULT_CONNECTION_MODE,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    MODE_EXCLUSIVE,
     NUM_SOURCES,
     SERVICE_ALL_ZONES_OFF,
     SERVICE_ALL_ZONES_SOURCE,
@@ -118,7 +121,13 @@ def _async_register_services(hass: HomeAssistant) -> None:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Niles ZR-6 from a config entry."""
     conf = {**entry.data, **entry.options}
-    client = NilesZR6Client(conf[CONF_HOST], conf[CONF_PORT])
+    client = NilesZR6Client(
+        conf[CONF_HOST],
+        conf[CONF_PORT],
+        persistent=conf.get(CONF_CONNECTION_MODE, DEFAULT_CONNECTION_MODE)
+        == MODE_EXCLUSIVE,
+    )
+    entry.async_on_unload(client.async_disconnect)
     num_zones: int = conf[CONF_NUM_ZONES]
     zones = list(range(1, num_zones + 1))
     scan_interval: int = conf.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
