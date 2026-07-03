@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Verbinden met de Niles ZR-6",
-        "description": "Voer het adres in van de RS232-over-IP-bridge die op de ZR-6 is aangesloten.",
+        "description": "Voer het adres in van de RS232-over-IP-bridge die met de ZR-6 is verbonden.",
         "data": {
           "host": "Host",
           "port": "Poort",
@@ -13,27 +13,73 @@
       "names": {
         "title": "Zone- en bronnamen",
         "description": "Geef je zones en bronnen herkenbare namen."
+      },
+      "reconfigure": {
+        "title": "Bridge-verbinding aanpassen",
+        "description": "Wijzig host/poort van de RS232-over-IP-bridge.",
+        "data": {
+          "host": "Host",
+          "port": "Poort"
+        }
       }
     },
     "error": {
       "cannot_connect": "Kan geen verbinding maken met de ZR-6. Controleer host/poort en zorg dat geen andere client de verbinding vasthoudt."
     },
     "abort": {
-      "already_configured": "Dit apparaat is al geconfigureerd."
+      "already_configured": "Dit apparaat is al geconfigureerd.",
+      "reconfigure_successful": "Bridge-verbinding bijgewerkt."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Niles ZR-6 opties",
-        "description": "Wijzig het aantal actieve zones.",
+        "title": "Niles ZR-6-opties",
+        "description": "Pas het aantal actieve zones en het poll-interval aan.",
         "data": {
-          "num_zones": "Aantal zones"
+          "num_zones": "Aantal zones",
+          "scan_interval": "Poll-interval (seconden)"
         }
       },
       "names": {
         "title": "Zone- en bronnamen",
         "description": "Werk zone- en bronnamen bij. Entiteiten van verwijderde zones worden automatisch opgeruimd."
+      }
+    }
+  },
+  "services": {
+    "all_zones_source": {
+      "name": "Alle zones: bron kiezen (party-mode)",
+      "description": "Selecteert in één keer een bron in alle party-mode-zones (znt global command). Zet die zones ook aan.",
+      "fields": {
+        "source": {
+          "name": "Bron",
+          "description": "Bronnummer 1-6."
+        }
+      }
+    },
+    "all_zones_off": {
+      "name": "Alle zones uit",
+      "description": "Zet alle zones in één keer uit (znt global command)."
+    },
+    "tune": {
+      "name": "Radio afstemmen",
+      "description": "Stemt de ingebouwde tuner direct af. FM: 'XXX.X' (bijv. 102.7), AM: 'XXXX' (bijv. 0560). De tuner moet de gekozen bron zijn in de actieve zone.",
+      "fields": {
+        "frequency": {
+          "name": "Frequentie",
+          "description": "Zenderfrequentie."
+        }
+      }
+    },
+    "send_command": {
+      "name": "Ruw commando sturen",
+      "description": "Stuurt een ruw protocolcommando naar de ZR-6 en geeft de antwoordregels terug. Voor diagnose/gevorderd gebruik.",
+      "fields": {
+        "command": {
+          "name": "Commando",
+          "description": "Ruw ASCII-commando zonder carriage return, bijv. 'znc,5'."
+        }
       }
     }
   }

@@ -1,0 +1,28 @@
+all_zones_source:
+  fields:
+    source:
+      required: true
+      example: 3
+      selector:
+        number:
+          min: 1
+          max: 6
+          mode: box
+
+all_zones_off: {}
+
+tune:
+  fields:
+    frequency:
+      required: true
+      example: "102.7"
+      selector:
+        text:
+
+send_command:
+  fields:
+    command:
+      required: true
+      example: "znc,5"
+      selector:
+        text:

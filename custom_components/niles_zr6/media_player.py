@@ -11,7 +11,6 @@ from homeassistant.components.media_player import (
     MediaPlayerState,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -64,6 +63,7 @@ class NilesZoneMediaPlayer(CoordinatorEntity[NilesZR6Coordinator], MediaPlayerEn
         MediaPlayerEntityFeature.TURN_ON
         | MediaPlayerEntityFeature.TURN_OFF
         | MediaPlayerEntityFeature.VOLUME_STEP
+        | MediaPlayerEntityFeature.VOLUME_SET
         | MediaPlayerEntityFeature.VOLUME_MUTE
         | MediaPlayerEntityFeature.SELECT_SOURCE
     )
@@ -136,11 +136,19 @@ class NilesZoneMediaPlayer(CoordinatorEntity[NilesZR6Coordinator], MediaPlayerEn
         return {"bass": status.bass, "treble": status.treble, "zone": self._zone}
 
     async def _async_command(self, code: str) -> None:
+        """Send a command; the client verifies and returns fresh status."""
         try:
-            await self.coordinator.client.async_zone_command(self._zone, code)
+            status = await self.coordinator.client.async_zone_command(
+                self._zone, code
+            )
         except NilesZR6Error as err:
             _LOGGER.error("Zone %s command %s failed: %s", self._zone, code, err)
-        await self.coordinator.async_request_refresh()
+            await self.coordinator.async_request_refresh()
+            return
+        if status is not None:
+            self.coordinator.apply_status(status)
+        else:
+            await self.coordinator.async_request_refresh()
 
     async def async_turn_on(self) -> None:
         """Turn the zone on by selecting the last known source.
@@ -160,6 +168,22 @@ class NilesZoneMediaPlayer(CoordinatorEntity[NilesZR6Coordinator], MediaPlayerEn
 
     async def async_volume_down(self) -> None:
         await self._async_command(CMD_VOL_DOWN)
+
+    async def async_set_volume_level(self, volume: float) -> None:
+        """Set an absolute volume level (0..1) via step emulation."""
+        target = round(volume * 100)
+        try:
+            status = await self.coordinator.client.async_set_volume(
+                self._zone, target
+            )
+        except NilesZR6Error as err:
+            _LOGGER.error("Zone %s set volume failed: %s", self._zone, err)
+            await self.coordinator.async_request_refresh()
+            return
+        if status is not None:
+            self.coordinator.apply_status(status)
+        else:
+            await self.coordinator.async_request_refresh()
 
     async def async_mute_volume(self, mute: bool) -> None:
         """Mute is a toggle on the ZR-6; only send when state differs."""
