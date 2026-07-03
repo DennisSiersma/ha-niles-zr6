@@ -42,7 +42,7 @@ TONE_MIN = -7
 TONE_MAX = 7
 
 # Safety caps for closed-loop stepping.
-MAX_VOLUME_STEPS = 60
+MAX_VOLUME_STEPS = 110
 MAX_VOLUME_ROUNDS = 4
 MAX_TONE_STEPS = 16
 
@@ -276,7 +276,7 @@ class NilesZR6Client:
                 status = await self._poll_zone_retry(reader, writer, zone)
                 if status is None:
                     raise NilesZR6Error(f"Zone {zone}: no status; cannot set volume")
-                step_size = 2  # initial estimate, refined after the first batch
+                step_size = 1  # measured on real hardware (1 point per step); refined after the first batch
                 steps_sent = 0
                 for _ in range(MAX_VOLUME_ROUNDS):
                     diff = target - status.volume
@@ -375,6 +375,8 @@ class NilesZR6Client:
 
         FM: 'XXX.X' (e.g. '102.7'); AM: 'XXXX' (e.g. '0560'). The tuner must
         be the selected source in the active zone.
+        \"\"\"
+
         """
         async with self._lock:
             reader, writer = await self._open()
