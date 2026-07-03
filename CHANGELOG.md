@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.1 (2026-07-03)
+
+### Fixed
+- **Zone Linking support**: power and source commands are applied by the amp
+  to all zones in a configured Zone Linking group at once. The integration
+  now re-reads **all** configured zones in the same TCP session after every
+  power/source command (volume/mute/tone still verify only their own zone,
+  as those remain independent per the ZR-6 manual). Previously the linked
+  partner zones showed a stale state until the next poll (up to 30 s).
+- `async_zone_command` now returns a dict of verified zone statuses;
+  coordinator gained `apply_statuses` for multi-zone merges.
+
 ## 1.1.0 (2026-07-02)
 
 ### Added

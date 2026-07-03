@@ -135,18 +135,25 @@ class NilesZoneMediaPlayer(CoordinatorEntity[NilesZR6Coordinator], MediaPlayerEn
             return None
         return {"bass": status.bass, "treble": status.treble, "zone": self._zone}
 
-    async def _async_command(self, code: str) -> None:
-        """Send a command; the client verifies and returns fresh status."""
+    async def _async_command(self, code: str, verify_all: bool = False) -> None:
+        """Send a command; the client verifies and returns fresh statuses.
+
+        Power and source commands can affect multiple zones at once on amps
+        with Zone Linking enabled, so those callers set verify_all=True to
+        re-read every configured zone in the same session.
+        """
         try:
-            status = await self.coordinator.client.async_zone_command(
-                self._zone, code
+            statuses = await self.coordinator.client.async_zone_command(
+                self._zone,
+                code,
+                verify_zones=self.coordinator.zones if verify_all else None,
             )
         except NilesZR6Error as err:
             _LOGGER.error("Zone %s command %s failed: %s", self._zone, code, err)
             await self.coordinator.async_request_refresh()
             return
-        if status is not None:
-            self.coordinator.apply_status(status)
+        if statuses:
+            self.coordinator.apply_statuses(statuses)
         else:
             await self.coordinator.async_request_refresh()
 
@@ -158,10 +165,10 @@ class NilesZoneMediaPlayer(CoordinatorEntity[NilesZR6Coordinator], MediaPlayerEn
         """
         status = self._status
         source = status.source if status and 1 <= status.source <= 6 else 1
-        await self._async_command(CMD_SOURCE[source])
+        await self._async_command(CMD_SOURCE[source], verify_all=True)
 
     async def async_turn_off(self) -> None:
-        await self._async_command(CMD_OFF)
+        await self._async_command(CMD_OFF, verify_all=True)
 
     async def async_volume_up(self) -> None:
         await self._async_command(CMD_VOL_UP)
@@ -194,4 +201,6 @@ class NilesZoneMediaPlayer(CoordinatorEntity[NilesZR6Coordinator], MediaPlayerEn
         if source not in self._sources:
             _LOGGER.warning("Unknown source: %s", source)
             return
-        await self._async_command(CMD_SOURCE[self._sources.index(source) + 1])
+        await self._async_command(
+            CMD_SOURCE[self._sources.index(source) + 1], verify_all=True
+        )

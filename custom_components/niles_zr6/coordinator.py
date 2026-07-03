@@ -49,14 +49,23 @@ class NilesZR6Coordinator(DataUpdateCoordinator[dict[int, ZoneStatus]]):
         return {z: s for z, s in merged.items() if z in self.zones}
 
     def apply_status(self, status: ZoneStatus | None) -> None:
-        """Merge a fresh single-zone status (from a verified command).
+        """Merge a fresh single-zone status (from a verified command)."""
+        if status is None:
+            return
+        self.apply_statuses({status.zone: status})
+
+    def apply_statuses(self, statuses: dict[int, ZoneStatus] | None) -> None:
+        """Merge fresh zone statuses (from a verified command).
 
         Lets entities update immediately after a command without scheduling a
-        full poll cycle of all zones.
+        full poll cycle. Multiple zones may change at once on amps with the
+        Zone Linking feature enabled.
         """
-        if status is None or status.zone not in self.zones:
+        if not statuses:
             return
         self.last_response = dt_util.utcnow()
         merged: dict[int, ZoneStatus] = dict(self.data) if self.data else {}
-        merged[status.zone] = status
+        for zone, status in statuses.items():
+            if zone in self.zones:
+                merged[zone] = status
         self.async_set_updated_data(merged)

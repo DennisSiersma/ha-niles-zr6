@@ -243,20 +243,33 @@ class NilesZR6Client:
             finally:
                 await self._close(writer)
 
-    async def async_zone_command(self, zone: int, code: str) -> ZoneStatus | None:
+    async def async_zone_command(
+        self, zone: int, code: str, verify_zones: list[int] | None = None
+    ) -> dict[int, ZoneStatus]:
         """Send a zone specific command and verify the result in one session.
 
-        Sends zsc,<zone>,<code>, then re-reads the status of that zone over
-        the same connection so callers can update state immediately without a
-        full poll cycle of all zones. Returns the fresh status, or None if
-        the verification read failed (the command itself was still sent).
+        Sends zsc,<zone>,<code>, then re-reads zone status over the same
+        connection so callers can update state immediately without a full
+        poll cycle. By default only the commanded zone is verified; pass
+        verify_zones to also verify others. Amps with the Zone Linking
+        feature apply power/source commands to all linked zones at once, so
+        callers sending those commands should verify all configured zones.
+
+        Returns a dict of zone -> fresh status; zones whose verification
+        read failed are omitted (the command itself was still sent).
         """
+        zones = [zone] + [z for z in (verify_zones or []) if z != zone]
         async with self._lock:
             reader, writer = await self._open()
             try:
                 await self._flush_input(reader)
                 await self._zsc(reader, writer, zone, code)
-                return await self._poll_zone_retry(reader, writer, zone)
+                statuses: dict[int, ZoneStatus] = {}
+                for z in zones:
+                    status = await self._poll_zone_retry(reader, writer, z)
+                    if status is not None:
+                        statuses[z] = status
+                return statuses
             finally:
                 await self._close(writer)
 

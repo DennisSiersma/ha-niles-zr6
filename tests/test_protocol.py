@@ -80,6 +80,7 @@ class FakeZR6:
         self.volume_step = volume_step
         self.commands = []
         self.tone_supported = True
+        self.linked_zones = set()  # zones that share power/source (Zone Linking)
         self._server = None
         self.port = None
 
@@ -99,6 +100,15 @@ class FakeZR6:
         )
 
     def _apply_zsc(self, zone, code):
+        # Zone Linking: power/source commands propagate to all linked zones.
+        if zone in self.linked_zones and code in ("01", "02", "03", "04", "05", "06", "10"):
+            targets = sorted(self.linked_zones)
+        else:
+            targets = [zone]
+        for tz in targets:
+            self._apply_zsc_single(tz, code)
+
+    def _apply_zsc_single(self, zone, code):
         z = self.zones[zone]
         if code in ("01", "02", "03", "04", "05", "06"):
             z.source = int(code)
@@ -196,18 +206,44 @@ class TestStatusPolling(FakeServerTestCase):
 
 class TestZoneCommand(FakeServerTestCase):
     async def test_command_returns_verified_status(self):
-        status = await self.client.async_zone_command(3, CMD_SOURCE[4])
-        self.assertIsNotNone(status)
-        self.assertEqual(status.zone, 3)
-        self.assertEqual(status.source, 4)
-        self.assertTrue(status.power)
+        statuses = await self.client.async_zone_command(3, CMD_SOURCE[4])
+        self.assertEqual(set(statuses), {3})
+        self.assertEqual(statuses[3].zone, 3)
+        self.assertEqual(statuses[3].source, 4)
+        self.assertTrue(statuses[3].power)
         self.assertEqual(self.server.zones[3].source, 4)
 
     async def test_off_command(self):
         self.server.zones[2].power = True
-        status = await self.client.async_zone_command(2, CMD_OFF)
-        self.assertIsNotNone(status)
-        self.assertFalse(status.power)
+        statuses = await self.client.async_zone_command(2, CMD_OFF)
+        self.assertFalse(statuses[2].power)
+
+    async def test_verify_zones_returns_all(self):
+        statuses = await self.client.async_zone_command(
+            1, CMD_SOURCE[3], verify_zones=[1, 2, 3, 4]
+        )
+        self.assertEqual(set(statuses), {1, 2, 3, 4})
+        self.assertTrue(statuses[1].power)
+        self.assertFalse(statuses[2].power)
+
+    async def test_linked_zones_propagate_and_verify(self):
+        """Zone Linking: a source command on one linked zone switches the
+        whole group; verify_zones must surface that immediately."""
+        self.server.linked_zones = {1, 2, 4}
+        statuses = await self.client.async_zone_command(
+            1, CMD_SOURCE[3], verify_zones=[1, 2, 3, 4]
+        )
+        self.assertTrue(statuses[1].power)
+        self.assertTrue(statuses[2].power)
+        self.assertTrue(statuses[4].power)
+        self.assertFalse(statuses[3].power)
+        # And off on another group member turns the group off.
+        statuses = await self.client.async_zone_command(
+            2, CMD_OFF, verify_zones=[1, 2, 3, 4]
+        )
+        self.assertFalse(statuses[1].power)
+        self.assertFalse(statuses[2].power)
+        self.assertFalse(statuses[4].power)
 
 
 class TestVolumeEmulation(FakeServerTestCase):
