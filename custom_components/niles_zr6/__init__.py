@@ -127,7 +127,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         persistent=conf.get(CONF_CONNECTION_MODE, DEFAULT_CONNECTION_MODE)
         == MODE_EXCLUSIVE,
     )
-    entry.async_on_unload(client.async_disconnect)
+
     num_zones: int = conf[CONF_NUM_ZONES]
     zones = list(range(1, num_zones + 1))
     scan_interval: int = conf.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
@@ -143,7 +143,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 ent_reg.async_remove(reg_entry.entity_id)
 
     coordinator = NilesZR6Coordinator(hass, client, zones, scan_interval)
-    await coordinator.async_config_entry_first_refresh()
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except Exception:
+        # Never leak a (persistent) connection when setup fails: a stale
+        # connection would block the single-client bridge for every retry.
+        await client.async_disconnect()
+        raise
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     _async_register_services(hass)
@@ -162,5 +168,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator: NilesZR6Coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        await coordinator.client.async_disconnect()
     return unload_ok

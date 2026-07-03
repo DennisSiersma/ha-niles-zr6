@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.1 (2026-07-03)
+
+### Fixed
+- **Exclusive mode: connection leak on failed setup.** When the first refresh
+  failed (e.g. the bridge briefly held the previous connection), the
+  persistent connection was never closed, wedging the single-client bridge
+  for every subsequent retry. Setup failures and entry unload now always
+  disconnect the client.
+
 ## 1.2.0 (2026-07-03)
 
 ### Added
