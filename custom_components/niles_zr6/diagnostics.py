@@ -8,7 +8,6 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
 from .coordinator import NilesZR6Coordinator
 
 
@@ -16,11 +15,12 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    coordinator: NilesZR6Coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: NilesZR6Coordinator = entry.runtime_data
     return {
         "entry_data": dict(entry.data),
         "entry_options": dict(entry.options),
         "zones": coordinator.zones,
+        "linked_zones": sorted(coordinator.linked_zones),
         "update_interval_seconds": (
             coordinator.update_interval.total_seconds()
             if coordinator.update_interval

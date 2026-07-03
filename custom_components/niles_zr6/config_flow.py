@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -15,9 +14,11 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import callback
+from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_CONNECTION_MODE,
+    CONF_LINKED_ZONES,
     CONF_NUM_ZONES,
     CONF_SCAN_INTERVAL,
     CONF_SOURCES,
@@ -170,6 +171,7 @@ class NilesZR6OptionsFlow(OptionsFlow):
         self._num_zones: int | None = None
         self._scan_interval: int | None = None
         self._connection_mode: str | None = None
+        self._linked_zones: list[str] | None = None
 
     @property
     def _conf(self) -> dict[str, Any]:
@@ -183,6 +185,7 @@ class NilesZR6OptionsFlow(OptionsFlow):
             self._num_zones = user_input[CONF_NUM_ZONES]
             self._scan_interval = user_input[CONF_SCAN_INTERVAL]
             self._connection_mode = user_input[CONF_CONNECTION_MODE]
+            self._linked_zones = user_input.get(CONF_LINKED_ZONES, [])
             return await self.async_step_names()
 
         schema = vol.Schema(
@@ -203,6 +206,19 @@ class NilesZR6OptionsFlow(OptionsFlow):
                         CONF_CONNECTION_MODE, DEFAULT_CONNECTION_MODE
                     ),
                 ): vol.In([MODE_SHARED, MODE_EXCLUSIVE]),
+                vol.Optional(
+                    CONF_LINKED_ZONES,
+                    default=[
+                        str(z) for z in self._conf.get(CONF_LINKED_ZONES, [])
+                    ],
+                ): cv.multi_select(
+                    {
+                        str(z): self._conf.get(CONF_ZONE_NAMES, {}).get(
+                            str(z), f"Zone {z}"
+                        )
+                        for z in range(1, self._conf[CONF_NUM_ZONES] + 1)
+                    }
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
@@ -232,6 +248,14 @@ class NilesZR6OptionsFlow(OptionsFlow):
                     or self._conf.get(
                         CONF_CONNECTION_MODE, DEFAULT_CONNECTION_MODE
                     ),
+                    CONF_LINKED_ZONES: [
+                        int(z)
+                        for z in (
+                            self._linked_zones
+                            if self._linked_zones is not None
+                            else self._conf.get(CONF_LINKED_ZONES, [])
+                        )
+                    ],
                     CONF_ZONE_NAMES: zone_names,
                     CONF_SOURCES: sources,
                 },

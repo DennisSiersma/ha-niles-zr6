@@ -39,7 +39,8 @@
         "data": {
           "num_zones": "Number of zones",
           "scan_interval": "Poll interval (seconds)",
-          "connection_mode": "Connection mode (shared = reconnect per command, exclusive = keep connection open)"
+          "connection_mode": "Connection mode (shared = reconnect per command, exclusive = keep connection open)",
+          "linked_zones": "Linked zones (Zone Linking group configured on the amp)"
         }
       },
       "names": {

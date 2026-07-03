@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import (
@@ -13,13 +12,15 @@ from homeassistant.core import (
     SupportsResponse,
 )
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     ATTR_COMMAND,
     ATTR_FREQUENCY,
     ATTR_SOURCE,
     CONF_CONNECTION_MODE,
+    CONF_LINKED_ZONES,
     CONF_NUM_ZONES,
     CONF_SCAN_INTERVAL,
     DEFAULT_CONNECTION_MODE,
@@ -55,9 +56,8 @@ SERVICE_SEND_COMMAND_SCHEMA = vol.Schema({vol.Required(ATTR_COMMAND): cv.string}
 
 def _get_coordinator(hass: HomeAssistant) -> NilesZR6Coordinator:
     """Return the coordinator of the first loaded entry."""
-    coordinators: dict[str, NilesZR6Coordinator] = hass.data.get(DOMAIN, {})
-    for coordinator in coordinators.values():
-        return coordinator
+    for entry in hass.config_entries.async_loaded_entries(DOMAIN):
+        return entry.runtime_data
     raise HomeAssistantError("Niles ZR-6 is not set up")
 
 
@@ -142,7 +142,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if zone_part.isdigit() and int(zone_part) > num_zones:
                 ent_reg.async_remove(reg_entry.entity_id)
 
-    coordinator = NilesZR6Coordinator(hass, client, zones, scan_interval)
+    linked_zones = [int(z) for z in conf.get(CONF_LINKED_ZONES, [])]
+    coordinator = NilesZR6Coordinator(
+        hass, client, zones, scan_interval, linked_zones
+    )
     try:
         await coordinator.async_config_entry_first_refresh()
     except Exception:
@@ -151,7 +154,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await client.async_disconnect()
         raise
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    entry.runtime_data = coordinator
     _async_register_services(hass)
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -168,6 +171,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        coordinator: NilesZR6Coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator: NilesZR6Coordinator = entry.runtime_data
         await coordinator.client.async_disconnect()
     return unload_ok

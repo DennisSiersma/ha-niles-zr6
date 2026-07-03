@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.0 (2026-07-03)
+
+### Added
+- **Adaptive polling**: after any command the integration polls every 5 s for
+  one minute, then falls back to the configured interval. Snappy dashboards
+  during interaction without a permanently higher poll load.
+- **Linked zones option** (options flow): tell the integration which zones
+  form the amp's Zone Linking group. Power/source commands then verify only
+  the relevant zones (the group for linked zones, just the zone itself for
+  independent ones) instead of all zones — less bridge traffic and faster
+  commands. Without configuration all zones are verified (safe default).
+
+### Changed
+- Modernized to the ``entry.runtime_data`` pattern (replaces ``hass.data``).
+- CI: added ruff lint job.
+
 ## 1.2.1 (2026-07-03)
 
 ### Fixed

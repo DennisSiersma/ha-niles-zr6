@@ -22,7 +22,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the last-response sensor."""
-    coordinator: NilesZR6Coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: NilesZR6Coordinator = entry.runtime_data
     async_add_entities([NilesLastResponseSensor(coordinator, entry)])
 
 

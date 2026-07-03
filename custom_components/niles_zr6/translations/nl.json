@@ -39,7 +39,8 @@
         "data": {
           "num_zones": "Aantal zones",
           "scan_interval": "Poll-interval (seconden)",
-          "connection_mode": "Verbindingsmodus (shared = per commando verbinden, exclusive = verbinding openhouden)"
+          "connection_mode": "Verbindingsmodus (shared = per commando verbinden, exclusive = verbinding openhouden)",
+          "linked_zones": "Gelinkte zones (Zone Linking-groep zoals op de versterker geconfigureerd)"
         }
       },
       "names": {

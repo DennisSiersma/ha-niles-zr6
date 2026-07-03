@@ -36,7 +36,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up media player entities, one per zone."""
-    coordinator: NilesZR6Coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: NilesZR6Coordinator = entry.runtime_data
     conf = {**entry.data, **entry.options}
     zone_names: dict[str, str] = conf.get(CONF_ZONE_NAMES, {})
     sources: list[str] = conf.get(
@@ -146,7 +146,9 @@ class NilesZoneMediaPlayer(CoordinatorEntity[NilesZR6Coordinator], MediaPlayerEn
             statuses = await self.coordinator.client.async_zone_command(
                 self._zone,
                 code,
-                verify_zones=self.coordinator.zones if verify_all else None,
+                verify_zones=self.coordinator.verify_zones_for(self._zone)
+                if verify_all
+                else None,
             )
         except NilesZR6Error as err:
             _LOGGER.error("Zone %s command %s failed: %s", self._zone, code, err)

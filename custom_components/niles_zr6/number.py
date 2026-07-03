@@ -27,7 +27,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up bass/treble number entities, two per zone."""
-    coordinator: NilesZR6Coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: NilesZR6Coordinator = entry.runtime_data
     conf = {**entry.data, **entry.options}
     zone_names: dict[str, str] = conf.get(CONF_ZONE_NAMES, {})
 
